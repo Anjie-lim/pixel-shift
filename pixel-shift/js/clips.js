@@ -38,7 +38,7 @@ export const CLIPS = {
     clip1: {
         id: "clip1",
         title: "Action Sequence",
-        file: "videos/clip1-action.mp4",
+        file: ".videos/clip1-action.mp4",
         description: "Fast motion scene with multiple hard cuts.",
         groundTruthCuts: [240, 360, 537]
     },
@@ -46,7 +46,7 @@ export const CLIPS = {
     clip2: {
         id: "clip2",
         title: "Fade Transitions",
-        file: "videos/clip2-fade.mp4",
+        file: ".videos/clip2-fade.mp4",
         description: "More sensitive to gradual scene transitions.",
         groundTruthCuts: [145, 476, 891, 1047, 1232, 1387, 1612]
     }
