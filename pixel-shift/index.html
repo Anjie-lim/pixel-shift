@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Pixel Shift | Shot Detection Sandbox</title>
+
+<meta name="description"
+   content="Compare human perception against machine scene detection. Tune thresholds, analyze pixel variance, and improve cut detection accuracy.">
+
+<link rel="stylesheet" href="css/styles.css">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+<div class="app-shell">
+
+```
+<!-- ======================================================
+     HEADER
+======================================================= -->
+
+<header class="top-bar">
+
+    <div class="branding">
+
+        <h1>Pixel Shift</h1>
+
+        <p class="tagline">
+            Human Perception vs Machine Detection
+        </p>
+
+    </div>
+
+    <div class="mode-selection">
+
+        <button id="clip1Btn"
+                class="mode-btn active">
+            Clip 1: Action
+        </button>
+
+        <button id="clip2Btn"
+                class="mode-btn">
+            Clip 2: Dialogue
+        </button>
+
+        <label class="upload-label">
+
+            Upload MP4
+
+            <input
+                type="file"
+                id="videoUpload"
+                accept="video/mp4"
+                hidden>
+
+        </label>
+
+    </div>
+
+</header>
+
+<!-- ======================================================
+     MAIN GRID
+======================================================= -->
+
+<main class="dashboard-grid">
+
+    <!-- ==========================================
+         LEFT PANEL
+    =========================================== -->
+
+    <section class="video-panel card">
+
+        <div class="panel-header">
+
+            <h2>Video Analysis</h2>
+
+            <div class="status-group">
+
+                <span id="currentFrame">
+                    Frame: 0
+                </span>
+
+                <span id="currentTime">
+                    00:00
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="video-wrapper">
+
+            <video
+                id="video"
+                crossorigin="anonymous"
+                preload="metadata"
+                controls>
+            </video>
+
+        </div>
+
+        <div class="transport-controls">
+
+            <button id="stepBackBtn">
+                ◀ Previous Frame
+            </button>
+
+            <button id="playPauseBtn">
+                Play / Pause
+            </button>
+
+            <button id="stepForwardBtn">
+                Next Frame ▶
+            </button>
+
+        </div>
+
+        <div class="speed-controls">
+
+            <div class="control-label-row">
+
+                <label>
+                    Playback Speed
+                </label>
+
+                <span id="speedValue">
+                    1.0x
+                </span>
+
+            </div>
+
+            <input
+                id="speedSlider"
+                type="range"
+                min="0.25"
+                max="3"
+                step="0.25"
+                value="1">
+
+        </div>
+
+    </section>
+
+    <!-- ==========================================
+         RIGHT PANEL
+    =========================================== -->
+
+    <section class="analysis-panel card">
+
+        <div class="panel-header">
+
+            <h2>Detection Controls</h2>
+
+        </div>
+
+        <div class="preset-group">
+
+            <label>
+                Detection Preset
+            </label>
+
+            <select id="presetSelect">
+
+                <option value="dialogue">
+                    Dialogue Scenes
+                </option>
+
+                <option value="action">
+                    Action Sequences
+                </option>
+
+                <option value="fade">
+                    Fade Transitions
+                </option>
+
+                <option value="flash">
+                    Flash Cuts
+                </option>
+
+                <option value="custom">
+                    Custom
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="slider-group">
+
+            <div class="control-label-row">
+
+                <label>
+                    Sensitivity Threshold
+                </label>
+
+                <span id="thresholdValue">
+                    25%
+                </span>
+
+            </div>
+
+            <input
+                id="thresholdSlider"
+                type="range"
+                min="0"
+                max="100"
+                value="25">
+
+        </div>
+
+        <div class="toggle-group">
+
+            <button id="toggleCanvasBtn">
+                Show Analysis Canvas
+            </button>
+
+            <button id="toggleHeatmapBtn">
+                Heatmap Overlay
+            </button>
+
+        </div>
+
+        <div class="canvas-wrapper">
+
+            <canvas id="analysisCanvas"></canvas>
+
+        </div>
+
+        <div class="metrics-live">
+
+            <div class="metric-box">
+
+                <span class="metric-title">
+                    Pixel Difference
+                </span>
+
+                <span id="liveDifference">
+                    0%
+                </span>
+
+            </div>
+
+            <div class="metric-box">
+
+                <span class="metric-title">
+                    AI Flags
+                </span>
+
+                <span id="systemFlagsCount">
+                    0
+                </span>
+
+            </div>
+
+            <div class="metric-box">
+
+                <span class="metric-title">
+                    Human Flags
+                </span>
+
+                <span id="humanFlagsCount">
+                    0
+                </span>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- ==========================================
+         CHART PANEL
+    =========================================== -->
+
+    <section class="chart-panel card">
+
+        <div class="panel-header">
+
+            <h2>Pixel Difference Timeline</h2>
+
+        </div>
+
+        <canvas id="differenceChart"></canvas>
+
+    </section>
+
+    <!-- ==========================================
+         EVALUATION PANEL
+    =========================================== -->
+
+    <section class="evaluation-panel card">
+
+        <div class="panel-header">
+
+            <h2>Evaluation Results</h2>
+
+        </div>
+
+        <div class="evaluation-controls">
+
+            <button id="evaluateBtn">
+                Evaluate Detection
+            </button>
+
+            <button id="exportCsvBtn">
+                Export CSV
+            </button>
+
+            <button id="resetSessionBtn">
+                Reset Session
+            </button>
+
+        </div>
+
+        <div class="results-grid">
+
+            <div class="result-card">
+
+                <span>True Positives</span>
+
+                <strong id="tp">
+                    0
+                </strong>
+
+            </div>
+
+            <div class="result-card">
+
+                <span>False Positives</span>
+
+                <strong id="fp">
+                    0
+                </strong>
+
+            </div>
+
+            <div class="result-card">
+
+                <span>False Negatives</span>
+
+                <strong id="fn">
+                    0
+                </strong>
+
+            </div>
+
+            <div class="result-card">
+
+                <span>Precision</span>
+
+                <strong id="precision">
+                    0%
+                </strong>
+
+            </div>
+
+            <div class="result-card">
+
+                <span>Recall</span>
+
+                <strong id="recall">
+                    0%
+                </strong>
+
+            </div>
+
+            <div class="result-card">
+
+                <span>F1 Score</span>
+
+                <strong id="f1score">
+                    0%
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- ==========================================
+         LEADERBOARD
+    =========================================== -->
+
+    <section class="leaderboard-panel card">
+
+        <div class="panel-header">
+
+            <h2>Best Calibration Runs</h2>
+
+        </div>
+
+        <table id="leaderboardTable">
+
+            <thead>
+
+            <tr>
+                <th>Rank</th>
+                <th>Threshold</th>
+                <th>F1</th>
+                <th>Date</th>
+            </tr>
+
+            </thead>
+
+            <tbody>
+
+            </tbody>
+
+        </table>
+
+    </section>
+
+    <!-- ==========================================
+         HUMAN INPUT INSTRUCTIONS
+    =========================================== -->
+
+    <section class="instructions-panel card">
+
+        <h2>Human Ground Truth Mode</h2>
+
+        <p>
+            When using a custom uploaded video,
+            press the SPACEBAR whenever you
+            visually identify a shot change.
+        </p>
+
+        <p>
+            Your inputs become the ground truth
+            used to evaluate the AI detector.
+        </p>
+
+        <div id="spacebarIndicator">
+
+            Waiting for input...
+
+        </div>
+
+    </section>
+
+</main>
+```
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+
+</html>
