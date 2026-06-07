@@ -5,75 +5,68 @@
 // ==========================================================
 
 import {
-CLIPS,
-DETECTION_PRESETS,
-DEFAULT_SESSION
+    CLIPS,
+    DETECTION_PRESETS,
+    DEFAULT_SESSION
 } from "./clips.js";
 
-import {
-createDetector
-} from "./detector.js";
+import { createDetector } from "./detector.js";
 
 import {
-createDifferenceChart,
-addFrameData,
-addHumanMarker,
-addSystemMarker,
-updateThreshold,
-resetChart
+    createDifferenceChart,
+    addFrameData,
+    addHumanMarker,
+    addSystemMarker,
+    updateThreshold,
+    resetChart
 } from "./chart.js";
 
 import {
-evaluateDetection,
-computeMetrics,
-buildConfusionReport,
-buildLeaderboardEntry,
-loadLeaderboard,
-updateLeaderboard,
-exportEvaluationCSV
+    evaluateDetection,
+    computeMetrics,
+    buildConfusionReport,
+    buildLeaderboardEntry,
+    loadLeaderboard,
+    updateLeaderboard,
+    exportEvaluationCSV
 } from "./evaluator.js";
 
 // ==========================================================
-// DOM REFERENCES
+// DOM REFERENCES (CACHED)
 // ==========================================================
 
-const video =
-document.getElementById("video");
+const video = document.getElementById("video");
+const canvas = document.getElementById("analysisCanvas");
 
-const canvas =
-document.getElementById("analysisCanvas");
+const thresholdSlider = document.getElementById("thresholdSlider");
+const speedSlider = document.getElementById("speedSlider");
+const presetSelect = document.getElementById("presetSelect");
 
-const thresholdSlider =
-document.getElementById("thresholdSlider");
+const liveDifferenceEl = document.getElementById("liveDifference");
+const systemFlagsEl = document.getElementById("systemFlagsCount");
+const humanFlagsEl = document.getElementById("humanFlagsCount");
 
-const speedSlider =
-document.getElementById("speedSlider");
+const clip1Btn = document.getElementById("clip1Btn");
+const clip2Btn = document.getElementById("clip2Btn");
+const uploadInput = document.getElementById("videoUpload");
 
-const presetSelect =
-document.getElementById("presetSelect");
+const evaluateBtn = document.getElementById("evaluateBtn");
+const resetBtn = document.getElementById("resetSessionBtn");
+const exportBtn = document.getElementById("exportCsvBtn");
 
 // ==========================================================
 // STATE
 // ==========================================================
 
 let state = {
-
-```
-mode: "clip1",
-
-clip: CLIPS.clip1,
-
-frameNumber: 0,
-
-humanCuts: [],
-
-detector: null,
-
-chart: null,
-
-isPlaying: false
-```
-
+    mode: "clip1",
+    clip: CLIPS.clip1,
+    frameNumber: 0,
+    humanCuts: [],
+    detector: null,
+    chart: null,
+    isPlaying: false,
+    initialized: false
 };
 
 // ==========================================================
@@ -81,23 +74,18 @@ isPlaying: false
 // ==========================================================
 
 function init() {
+    if (state.initialized) return;
+    state.initialized = true;
 
-```
-state.detector =
-    createDetector(canvas);
+    state.detector = createDetector(canvas);
 
-state.chart =
-    createDifferenceChart(
-        "differenceChart"
-    );
+    state.chart = createDifferenceChart("differenceChart");
 
-loadClip("clip1");
+    loadClip("clip1");
 
-bindEvents();
+    bindEvents();
 
-loadLeaderboardUI();
-```
-
+    loadLeaderboardUI();
 }
 
 init();
@@ -107,25 +95,21 @@ init();
 // ==========================================================
 
 function loadClip(clipId) {
+    const clip = CLIPS[clipId];
 
-```
-const clip =
-    CLIPS[clipId];
+    state.clip = clip;
+    state.frameNumber = 0;
+    state.humanCuts = [];
 
-state.clip = clip;
-state.frameNumber = 0;
-state.humanCuts = [];
+    video.pause();
 
-resetChart();
-state.detector.reset();
+    resetChart();
+    state.detector.reset();
 
-video.src = clip.file;
+    video.src = clip.file;
+    video.load();
 
-video.load();
-
-updateStatus(`Loaded: ${clip.title}`);
-```
-
+    updateStatus(`Loaded: ${clip.title}`);
 }
 
 // ==========================================================
@@ -134,258 +118,148 @@ updateStatus(`Loaded: ${clip.title}`);
 
 function bindEvents() {
 
-```
-// ------------------------------------------
-// VIDEO PLAY LOOP
-// ------------------------------------------
+    // ------------------------------
+    // VIDEO LOOP
+    // ------------------------------
 
-video.addEventListener("play", () => {
+    const raf =
+        video.requestVideoFrameCallback?.bind(video) ||
+        ((cb) => requestAnimationFrame(cb));
 
-    requestFrameLoop();
+    const loop = () => {
 
-});
+        if (video.paused || video.ended) return;
 
-// ------------------------------------------
-// THRESHOLD
-// ------------------------------------------
+        if (!state.detector) return;
 
-thresholdSlider.addEventListener(
-    "input",
-    e => {
+        const fps = state.clip?.fps || 30;
+        state.frameNumber = Math.floor(video.currentTime * fps);
 
-        const value =
-            Number(e.target.value);
+        const result =
+            state.detector.processFrame(video, state.frameNumber);
+
+        addFrameData(
+            state.frameNumber,
+            result.difference,
+            state.detector.getThreshold()
+        );
+
+        if (result.systemCut) {
+            addSystemMarker(state.frameNumber);
+        }
+
+        // UI updates (cached DOM)
+        liveDifferenceEl.textContent =
+            `${result.difference}%`;
+
+        systemFlagsEl.textContent =
+            state.detector.getSystemFlags().length;
+
+        humanFlagsEl.textContent =
+            state.humanCuts.length;
+
+        raf(loop);
+    };
+
+    video.addEventListener("play", () => {
+        raf(loop);
+    });
+
+    // ------------------------------
+    // THRESHOLD
+    // ------------------------------
+
+    thresholdSlider.addEventListener("input", e => {
+        const value = Number(e.target.value);
 
         state.detector.setThreshold(value);
-
         updateThreshold(value);
+    });
 
-    }
-);
+    // ------------------------------
+    // SPEED
+    // ------------------------------
 
-// ------------------------------------------
-// SPEED CONTROL
-// ------------------------------------------
+    speedSlider.addEventListener("input", e => {
+        video.playbackRate = Number(e.target.value);
+    });
 
-speedSlider.addEventListener(
-    "input",
-    e => {
+    // ------------------------------
+    // PRESET
+    // ------------------------------
 
-        video.playbackRate =
-            Number(e.target.value);
+    presetSelect.addEventListener("change", e => {
+        const preset = DETECTION_PRESETS[e.target.value];
 
-    }
-);
+        state.detector.setThreshold(preset.threshold);
+        state.detector.setCooldown(preset.cooldown);
 
-// ------------------------------------------
-// PRESET SELECTION
-// ------------------------------------------
+        thresholdSlider.value = preset.threshold;
+        updateThreshold(preset.threshold);
+    });
 
-presetSelect.addEventListener(
-    "change",
-    e => {
+    // ------------------------------
+    // HUMAN GROUND TRUTH
+    // ------------------------------
 
-        const preset =
-            DETECTION_PRESETS[
-                e.target.value
-            ];
+    document.addEventListener("keydown", e => {
+        if (e.code === "Space") {
 
-        state.detector.setThreshold(
-            preset.threshold
-        );
+            const frame = state.frameNumber;
 
-        state.detector.setCooldown(
-            preset.cooldown
-        );
-
-        thresholdSlider.value =
-            preset.threshold;
-
-        updateThreshold(
-            preset.threshold
-        );
-
-    }
-);
-
-// ------------------------------------------
-// HUMAN GROUND TRUTH INPUT
-// ------------------------------------------
-
-document.addEventListener(
-    "keydown",
-    e => {
-
-        if (
-            e.code === "Space"
-        ) {
-
-            state.humanCuts.push(
-                state.frameNumber
-            );
-
-            addHumanMarker(
-                state.frameNumber
-            );
+            if (!state.humanCuts.includes(frame)) {
+                state.humanCuts.push(frame);
+                addHumanMarker(frame);
+            }
         }
-    }
-);
+    });
 
-// ------------------------------------------
-// CLIP SWITCHING
-// ------------------------------------------
+    // ------------------------------
+    // CLIP SWITCHING
+    // ------------------------------
 
-document
-    .getElementById("clip1Btn")
-    .addEventListener(
-        "click",
-        () => loadClip("clip1")
-    );
+    clip1Btn.addEventListener("click", () => loadClip("clip1"));
+    clip2Btn.addEventListener("click", () => loadClip("clip2"));
 
-document
-    .getElementById("clip2Btn")
-    .addEventListener(
-        "click",
-        () => loadClip("clip2")
-    );
+    // ------------------------------
+    // UPLOAD VIDEO
+    // ------------------------------
 
-// ------------------------------------------
-// UPLOAD CUSTOM VIDEO
-// ------------------------------------------
+    uploadInput.addEventListener("change", e => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-document
-    .getElementById("videoUpload")
-    .addEventListener(
-        "change",
-        e => {
+        video.pause();
 
-            const file =
-                e.target.files[0];
+        video.src = URL.createObjectURL(file);
 
-            if (!file) return;
+        state.clip = null;
+        state.humanCuts = [];
+        state.frameNumber = 0;
 
-            video.src =
-                URL.createObjectURL(file);
+        resetChart();
+        state.detector.reset();
+    });
 
-            state.clip = null;
+    // ------------------------------
+    // EVALUATE
+    // ------------------------------
 
-            state.humanCuts = [];
+    evaluateBtn.addEventListener("click", evaluateSession);
 
-            resetChart();
+    // ------------------------------
+    // RESET
+    // ------------------------------
 
-            state.detector.reset();
+    resetBtn.addEventListener("click", resetSession);
 
-        }
-    );
+    // ------------------------------
+    // EXPORT
+    // ------------------------------
 
-// ------------------------------------------
-// EVALUATE
-// ------------------------------------------
-
-document
-    .getElementById("evaluateBtn")
-    .addEventListener(
-        "click",
-        evaluateSession
-    );
-
-// ------------------------------------------
-// RESET
-// ------------------------------------------
-
-document
-    .getElementById("resetSessionBtn")
-    .addEventListener(
-        "click",
-        resetSession
-    );
-
-// ------------------------------------------
-// CSV EXPORT
-// ------------------------------------------
-
-document
-    .getElementById("exportCsvBtn")
-    .addEventListener(
-        "click",
-        () => {
-
-            state.detector.downloadCSV();
-
-        }
-    );
-```
-
-}
-
-// ==========================================================
-// FRAME LOOP
-// ==========================================================
-
-function requestFrameLoop() {
-
-```
-const loop = () => {
-
-    if (
-        video.paused ||
-        video.ended
-    ) {
-        return;
-    }
-
-    state.frameNumber++;
-
-    const result =
-        state.detector.processFrame(
-            video,
-            state.frameNumber
-        );
-
-    // --------------------------------------
-    // UPDATE CHART
-    // --------------------------------------
-
-    addFrameData(
-        state.frameNumber,
-        result.difference,
-        state.detector.getThreshold()
-    );
-
-    if (result.systemCut) {
-
-        addSystemMarker(
-            state.frameNumber
-        );
-    }
-
-    // --------------------------------------
-    // LIVE UI
-    // --------------------------------------
-
-    document.getElementById(
-        "liveDifference"
-    ).textContent =
-        `${result.difference}%`;
-
-    document.getElementById(
-        "systemFlagsCount"
-    ).textContent =
-        state.detector.getSystemFlags().length;
-
-    document.getElementById(
-        "humanFlagsCount"
-    ).textContent =
-        state.humanCuts.length;
-
-    // --------------------------------------
-
-    requestVideoFrameCallback(loop);
-};
-
-requestVideoFrameCallback(loop);
-```
-
+    exportBtn.addEventListener("click", () => {
+        state.detector.downloadCSV();
+    });
 }
 
 // ==========================================================
@@ -394,111 +268,83 @@ requestVideoFrameCallback(loop);
 
 function evaluateSession() {
 
-```
-let groundTruth =
-    state.clip
-        ? state.clip.groundTruthCuts
-        : state.humanCuts;
+    const groundTruth =
+        state.clip?.groundTruthCuts?.length
+            ? state.clip.groundTruthCuts
+            : state.humanCuts;
 
-const systemFlags =
-    state.detector.getSystemFlags();
+    const systemFlags =
+        state.detector.getSystemFlags();
 
-const report =
-    buildConfusionReport(
-        groundTruth,
-        systemFlags
-    );
-
-// UPDATE UI
-document.getElementById("tp").textContent =
-    report.tp;
-
-document.getElementById("fp").textContent =
-    report.fp;
-
-document.getElementById("fn").textContent =
-    report.fn;
-
-document.getElementById("precision").textContent =
-    `${report.precision}%`;
-
-document.getElementById("recall").textContent =
-    `${report.recall}%`;
-
-document.getElementById("f1score").textContent =
-    `${report.f1}%`;
-
-// LEADERBOARD
-if (state.clip) {
-
-    const entry =
-        buildLeaderboardEntry(
-            state.detector.getThreshold(),
-            report
+    const report =
+        buildConfusionReport(
+            groundTruth,
+            systemFlags
         );
 
-    updateLeaderboard(entry);
+    document.getElementById("tp").textContent = report.tp;
+    document.getElementById("fp").textContent = report.fp;
+    document.getElementById("fn").textContent = report.fn;
 
-    loadLeaderboardUI();
-}
-```
+    document.getElementById("precision").textContent =
+        `${report.precision}%`;
 
+    document.getElementById("recall").textContent =
+        `${report.recall}%`;
+
+    document.getElementById("f1score").textContent =
+        `${report.f1}%`;
+
+    if (state.clip) {
+        const entry =
+            buildLeaderboardEntry(
+                state.detector.getThreshold(),
+                report
+            );
+
+        updateLeaderboard(entry);
+        loadLeaderboardUI();
+    }
 }
 
 // ==========================================================
-// LEADERBOARD UI
+// LEADERBOARD
 // ==========================================================
 
 function loadLeaderboardUI() {
+    const data = loadLeaderboard();
 
-```
-const data =
-    loadLeaderboard();
+    const tbody =
+        document.querySelector("#leaderboardTable tbody");
 
-const tbody =
-    document.querySelector(
-        "#leaderboardTable tbody"
-    );
+    tbody.innerHTML = "";
 
-tbody.innerHTML = "";
+    data.forEach((entry, index) => {
+        const row = document.createElement("tr");
 
-data.forEach((entry, index) => {
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${entry.threshold}</td>
+            <td>${entry.f1.toFixed(2)}</td>
+            <td>${new Date(entry.timestamp).toLocaleDateString()}</td>
+        `;
 
-    const row =
-        document.createElement("tr");
-
-    row.innerHTML = `
-        <td>${index + 1}</td>
-        <td>${entry.threshold}</td>
-        <td>${entry.f1.toFixed(2)}</td>
-        <td>${new Date(entry.timestamp).toLocaleDateString()}</td>
-    `;
-
-    tbody.appendChild(row);
-
-});
-```
-
+        tbody.appendChild(row);
+    });
 }
 
 // ==========================================================
-// RESET SESSION
+// RESET
 // ==========================================================
 
 function resetSession() {
+    state.frameNumber = 0;
+    state.humanCuts = [];
 
-```
-state.frameNumber = 0;
+    state.detector.reset();
+    resetChart();
 
-state.humanCuts = [];
-
-state.detector.reset();
-
-resetChart();
-
-updateStatus("Session reset");
-```
-
+    updateStatus("Session reset");
 }
 
 // ==========================================================
@@ -506,22 +352,9 @@ updateStatus("Session reset");
 // ==========================================================
 
 function updateStatus(msg) {
+    const el = document.getElementById("spacebarIndicator");
 
-```
-const el =
-    document.getElementById(
-        "spacebarIndicator"
-    );
-
-if (el) {
-
-    el.textContent = msg;
-
+    if (el) {
+        el.textContent = msg;
+    }
 }
-```
-
-}
-
-// ==========================================================
-// END OF FILE
-// ==========================================================
