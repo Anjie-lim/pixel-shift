@@ -1,15 +1,10 @@
-// ==========================================================
-// Pixel Shift
-// js/chart.js
-// Chart.js Visualization Layer
-// ==========================================================
-
 import {
-CHART_CONFIG,
-CHART_MAX_POINTS
+    CHART_CONFIG,
+    CHART_MAX_POINTS
 } from "./clips.js";
 
 let chartInstance = null;
+let dirty = false;
 
 // ==========================================================
 // CREATE CHART
@@ -17,580 +12,257 @@ let chartInstance = null;
 
 export function createDifferenceChart(canvasId) {
 
-```
-const canvas =
-    document.getElementById(canvasId);
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
 
-const ctx =
-    canvas.getContext("2d");
+    chartInstance = new Chart(ctx, {
+        type: "line",
 
-chartInstance = new Chart(ctx, {
+        data: {
+            labels: [],
+            datasets: [
 
-    type: "line",
+                // PIXEL DIFFERENCE
+                {
+                    label: "Pixel Difference %",
+                    data: [],
+                    borderColor: CHART_CONFIG.pixelDifferenceColor,
+                    backgroundColor: CHART_CONFIG.fillColor,
+                    borderWidth: 2,
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.15
+                },
 
-    data: {
+                // THRESHOLD
+                {
+                    label: "Threshold",
+                    data: [],
+                    borderColor: CHART_CONFIG.thresholdColor,
+                    borderWidth: 2,
+                    borderDash: [8, 4],
+                    pointRadius: 0,
+                    fill: false
+                },
 
-        labels: [],
+                // HUMAN CUTS (SCATTER)
+                {
+                    label: "Human Cuts",
+                    type: "scatter",
+                    data: [],
+                    parsing: false,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    backgroundColor: CHART_CONFIG.humanMarkerColor,
+                    borderColor: CHART_CONFIG.humanMarkerColor
+                },
 
-        datasets: [
-
-            // ======================================
-            // PIXEL DIFFERENCE
-            // ======================================
-
-            {
-                label: "Pixel Difference %",
-
-                data: [],
-
-                borderColor:
-                    CHART_CONFIG.pixelDifferenceColor,
-
-                backgroundColor:
-                    CHART_CONFIG.fillColor,
-
-                borderWidth: 2,
-
-                fill: true,
-
-                pointRadius: 0,
-
-                tension: 0.15
-            },
-
-            // ======================================
-            // THRESHOLD
-            // ======================================
-
-            {
-                label: "Threshold",
-
-                data: [],
-
-                borderColor:
-                    CHART_CONFIG.thresholdColor,
-
-                borderWidth: 2,
-
-                borderDash: [8, 4],
-
-                pointRadius: 0,
-
-                fill: false
-            },
-
-            // ======================================
-            // HUMAN CUT MARKERS
-            // ======================================
-
-            {
-                label: "Human Cuts",
-
-                data: [],
-
-                showLine: false,
-
-                pointRadius: 6,
-
-                pointHoverRadius: 8,
-
-                pointBackgroundColor:
-                    CHART_CONFIG.humanMarkerColor,
-
-                pointBorderColor:
-                    CHART_CONFIG.humanMarkerColor
-            },
-
-            // ======================================
-            // SYSTEM CUT MARKERS
-            // ======================================
-
-            {
-                label: "System Cuts",
-
-                data: [],
-
-                showLine: false,
-
-                pointRadius: 6,
-
-                pointHoverRadius: 8,
-
-                pointBackgroundColor:
-                    CHART_CONFIG.systemMarkerColor,
-
-                pointBorderColor:
-                    CHART_CONFIG.systemMarkerColor
-            }
-        ]
-    },
-
-    options: {
-
-        responsive: true,
-
-        maintainAspectRatio: false,
-
-        animation: false,
-
-        interaction: {
-
-            mode: "nearest",
-
-            intersect: false
+                // SYSTEM CUTS (SCATTER)
+                {
+                    label: "System Cuts",
+                    type: "scatter",
+                    data: [],
+                    parsing: false,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    backgroundColor: CHART_CONFIG.systemMarkerColor,
+                    borderColor: CHART_CONFIG.systemMarkerColor
+                }
+            ]
         },
 
-        plugins: {
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
 
-            legend: {
+            interaction: {
+                mode: "nearest",
+                intersect: false
+            },
 
-                labels: {
-                    color: "#ffffff"
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "#ffffff"
+                    }
                 }
             },
 
-            tooltip: {
-
-                enabled: true
-            }
-        },
-
-        scales: {
-
-            x: {
-
-                title: {
-
-                    display: true,
-
-                    text: "Frame Number",
-
-                    color: "#ffffff"
+            scales: {
+                x: {
+                    ticks: { color: "#9ca8c7" },
+                    grid: { color: "rgba(255,255,255,.05)" }
                 },
 
-                ticks: {
-
-                    color: "#9ca8c7"
-                },
-
-                grid: {
-
-                    color:
-                        "rgba(255,255,255,.05)"
-                }
-            },
-
-            y: {
-
-                min: 0,
-
-                max: 100,
-
-                title: {
-
-                    display: true,
-
-                    text: "Pixel Difference %",
-
-                    color: "#ffffff"
-                },
-
-                ticks: {
-
-                    color: "#9ca8c7"
-                },
-
-                grid: {
-
-                    color:
-                        "rgba(255,255,255,.05)"
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: { color: "#9ca8c7" },
+                    grid: { color: "rgba(255,255,255,.05)" }
                 }
             }
         }
-    }
-});
-
-return chartInstance;
-```
-
-}
-
-// ==========================================================
-// GET CHART
-// ==========================================================
-
-export function getChart() {
-
-```
-return chartInstance;
-```
-
-}
-
-// ==========================================================
-// UPDATE LIVE DATA
-// ==========================================================
-
-export function addFrameData(
-frameNumber,
-difference,
-threshold
-) {
-
-```
-if (!chartInstance) return;
-
-chartInstance.data.labels.push(
-    frameNumber
-);
-
-chartInstance.data.datasets[0]
-    .data.push(difference);
-
-chartInstance.data.datasets[1]
-    .data.push(threshold);
-
-trimChartData();
-
-chartInstance.update("none");
-```
-
-}
-
-// ==========================================================
-// HUMAN CUT MARKER
-// ==========================================================
-
-export function addHumanMarker(
-frameNumber,
-value = 95
-) {
-
-```
-if (!chartInstance) return;
-
-chartInstance.data.datasets[2]
-    .data.push({
-
-        x: frameNumber,
-        y: value
     });
 
-chartInstance.update("none");
-```
-
+    return chartInstance;
 }
 
 // ==========================================================
-// SYSTEM CUT MARKER
+// FRAME DATA
 // ==========================================================
 
-export function addSystemMarker(
-frameNumber,
-value = 90
-) {
+export function addFrameData(frameNumber, difference, threshold) {
 
-```
-if (!chartInstance) return;
+    if (!chartInstance) return;
 
-chartInstance.data.datasets[3]
-    .data.push({
+    chartInstance.data.labels.push(frameNumber);
+    chartInstance.data.datasets[0].data.push(difference);
+    chartInstance.data.datasets[1].data.push(threshold);
 
+    trimChartData();
+    scheduleUpdate();
+}
+
+// ==========================================================
+// MARKERS
+// ==========================================================
+
+export function addHumanMarker(frameNumber) {
+    if (!chartInstance) return;
+
+    chartInstance.data.datasets[2].data.push({
         x: frameNumber,
-        y: value
+        y: 95
     });
 
-chartInstance.update("none");
-```
+    scheduleUpdate();
+}
 
+export function addSystemMarker(frameNumber) {
+    if (!chartInstance) return;
+
+    chartInstance.data.datasets[3].data.push({
+        x: frameNumber,
+        y: 90
+    });
+
+    scheduleUpdate();
 }
 
 // ==========================================================
-// UPDATE THRESHOLD LINE
+// THRESHOLD (NO FULL REBUILD)
 // ==========================================================
 
-export function updateThreshold(
-threshold
-) {
+export function updateThreshold(threshold) {
+    if (!chartInstance) return;
 
-```
-if (!chartInstance) return;
+    chartInstance.data.datasets[1].data.forEach((_, i, arr) => {
+        arr[i] = threshold;
+    });
 
-const length =
-    chartInstance.data.labels.length;
-
-chartInstance.data.datasets[1]
-    .data = new Array(length)
-    .fill(threshold);
-
-chartInstance.update("none");
-```
-
+    scheduleUpdate();
 }
 
 // ==========================================================
-// PERFORMANCE TRIMMING
+// PERFORMANCE TRIM
 // ==========================================================
 
 function trimChartData() {
 
-```
-const labels =
-    chartInstance.data.labels;
+    if (!chartInstance) return;
 
-if (
-    labels.length <=
-    CHART_MAX_POINTS
-) {
-    return;
-}
+    while (chartInstance.data.labels.length > CHART_MAX_POINTS) {
 
-labels.shift();
+        chartInstance.data.labels.shift();
 
-chartInstance
-    .data
-    .datasets
-    .forEach(dataset => {
-
-        if (
-            Array.isArray(dataset.data)
-        ) {
-
-            dataset.data.shift();
-
-        }
-
-    });
-```
-
+        chartInstance.data.datasets.forEach(ds => {
+            ds.data.shift();
+        });
+    }
 }
 
 // ==========================================================
-// CLEAR CHART
+// BATCHED UPDATE (IMPORTANT OPTIMIZATION)
+// ==========================================================
+
+function scheduleUpdate() {
+
+    if (dirty) return;
+
+    dirty = true;
+
+    requestAnimationFrame(() => {
+        chartInstance.update("none");
+        dirty = false;
+    });
+}
+
+// ==========================================================
+// RESET
 // ==========================================================
 
 export function resetChart() {
 
-```
-if (!chartInstance) return;
+    if (!chartInstance) return;
 
-chartInstance.data.labels = [];
+    chartInstance.data.labels = [];
 
-chartInstance.data.datasets.forEach(
-    dataset => {
+    chartInstance.data.datasets.forEach(ds => {
+        ds.data = [];
+    });
 
-        dataset.data = [];
-
-    }
-);
-
-chartInstance.update();
-```
-
+    chartInstance.update();
 }
 
 // ==========================================================
-// LOAD SESSION DATA
-// ==========================================================
-
-export function loadHistoricalData(
-frameLabels,
-differences,
-thresholds
-) {
-
-```
-if (!chartInstance) return;
-
-chartInstance.data.labels =
-    frameLabels;
-
-chartInstance.data.datasets[0]
-    .data = differences;
-
-chartInstance.data.datasets[1]
-    .data = thresholds;
-
-chartInstance.update();
-```
-
-}
-
-// ==========================================================
-// ZOOM TO FRAME RANGE
-// ==========================================================
-
-export function zoomToRange(
-startFrame,
-endFrame
-) {
-
-```
-if (!chartInstance) return;
-
-chartInstance.options.scales.x.min =
-    startFrame;
-
-chartInstance.options.scales.x.max =
-    endFrame;
-
-chartInstance.update();
-```
-
-}
-
-// ==========================================================
-// RESET ZOOM
-// ==========================================================
-
-export function resetZoom() {
-
-```
-if (!chartInstance) return;
-
-chartInstance.options.scales.x.min =
-    undefined;
-
-chartInstance.options.scales.x.max =
-    undefined;
-
-chartInstance.update();
-```
-
-}
-
-// ==========================================================
-// EXPORT CHART IMAGE
+// EXPORT
 // ==========================================================
 
 export function exportChartPNG() {
-
-```
-if (!chartInstance) return null;
-
-return chartInstance
-    .toBase64Image();
-```
-
+    if (!chartInstance) return null;
+    return chartInstance.toBase64Image();
 }
-
-// ==========================================================
-// SAVE IMAGE
-// ==========================================================
 
 export function downloadChartImage() {
 
-```
-const image =
-    exportChartPNG();
+    const img = exportChartPNG();
+    if (!img) return;
 
-if (!image) return;
-
-const link =
-    document.createElement("a");
-
-link.href = image;
-
-link.download =
-    "pixel-shift-chart.png";
-
-link.click();
-```
-
+    const link = document.createElement("a");
+    link.href = img;
+    link.download = "pixel-shift-chart.png";
+    link.click();
 }
 
 // ==========================================================
-// LIVE ANNOTATION
-// ==========================================================
-
-export function annotateCut(
-frameNumber,
-type
-) {
-
-```
-if (type === "human") {
-
-    addHumanMarker(frameNumber);
-
-}
-
-if (type === "system") {
-
-    addSystemMarker(frameNumber);
-
-}
-```
-
-}
-
-// ==========================================================
-// SUMMARY DATA
+// SUMMARY
 // ==========================================================
 
 export function getChartSummary() {
 
-```
-if (!chartInstance) {
+    if (!chartInstance) return null;
 
-    return null;
-}
+    const d = chartInstance.data.datasets[0].data;
+    if (!d.length) return null;
 
-const differences =
-    chartInstance.data
-        .datasets[0]
-        .data;
+    const max = Math.max(...d);
+    const min = Math.min(...d);
+    const avg = d.reduce((a, b) => a + b, 0) / d.length;
 
-if (
-    differences.length === 0
-) {
-
-    return null;
-}
-
-const max =
-    Math.max(...differences);
-
-const min =
-    Math.min(...differences);
-
-const avg =
-    differences.reduce(
-        (a, b) => a + b,
-        0
-    ) / differences.length;
-
-return {
-
-    maxDifference:
-        max.toFixed(2),
-
-    minDifference:
-        min.toFixed(2),
-
-    averageDifference:
-        avg.toFixed(2)
-};
-```
-
+    return {
+        maxDifference: max.toFixed(2),
+        minDifference: min.toFixed(2),
+        averageDifference: avg.toFixed(2)
+    };
 }
 
 // ==========================================================
-// DESTROY CHART
+// DESTROY
 // ==========================================================
 
 export function destroyChart() {
-
-```
-if (!chartInstance) return;
-
-chartInstance.destroy();
-
-chartInstance = null;
-```
-
+    if (!chartInstance) return;
+    chartInstance.destroy();
+    chartInstance = null;
 }
-
-// ==========================================================
-// END OF FILE
-// ==========================================================
